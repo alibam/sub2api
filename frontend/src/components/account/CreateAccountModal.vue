@@ -1044,6 +1044,12 @@
           <p class="input-hint">{{ apiKeyHint }}</p>
         </div>
 
+        <div v-if="form.platform === 'anthropic'">
+          <label class="input-label">上游鉴权头</label>
+          <Select v-model="anthropicAPIKeyAuthHeader" :options="anthropicAPIKeyAuthHeaderOptions" />
+          <p class="input-hint">京东云等兼容接口可选择 Authorization: Bearer。</p>
+        </div>
+
         <!-- Gemini API Key tier selection -->
         <div v-if="form.platform === 'gemini'">
           <label class="input-label">{{ t('admin.accounts.gemini.tier.label') }}</label>
@@ -3421,6 +3427,11 @@ const openaiOAuthResponsesWebSocketV2Mode = ref<OpenAIWSMode>(OPENAI_WS_MODE_OFF
 const openaiAPIKeyResponsesWebSocketV2Mode = ref<OpenAIWSMode>(OPENAI_WS_MODE_OFF)
 const codexCLIOnlyEnabled = ref(false)
 const codexCLIOnlyAllowClaudeCodeEnabled = ref(false)
+const anthropicAPIKeyAuthHeader = ref<'x-api-key' | 'bearer'>('x-api-key')
+const anthropicAPIKeyAuthHeaderOptions = [
+  { label: 'x-api-key', value: 'x-api-key' },
+  { label: 'Authorization: Bearer', value: 'bearer' }
+]
 const anthropicPassthroughEnabled = ref(false)
 const webSearchEmulationMode = ref('default')
 const webSearchGlobalEnabled = ref(false)
@@ -3848,6 +3859,7 @@ watch(
       codexCLIOnlyAllowClaudeCodeEnabled.value = false
     }
     if (newPlatform !== 'anthropic') {
+      anthropicAPIKeyAuthHeader.value = 'x-api-key'
       anthropicPassthroughEnabled.value = false
       webSearchEmulationMode.value = 'default'
     }
@@ -4248,6 +4260,7 @@ const resetForm = () => {
   openaiAPIKeyResponsesWebSocketV2Mode.value = OPENAI_WS_MODE_OFF
   codexCLIOnlyEnabled.value = false
   codexCLIOnlyAllowClaudeCodeEnabled.value = false
+  anthropicAPIKeyAuthHeader.value = 'x-api-key'
   anthropicPassthroughEnabled.value = false
   webSearchEmulationMode.value = 'default'
   // Reset quota control state
@@ -4623,6 +4636,9 @@ const handleSubmit = async () => {
   const credentials: Record<string, unknown> = {
     base_url: apiKeyBaseUrl.value.trim() || defaultBaseUrl,
     api_key: apiKeyValue.value.trim()
+  }
+  if (form.platform === 'anthropic' && anthropicAPIKeyAuthHeader.value !== 'x-api-key') {
+    credentials.auth_header = anthropicAPIKeyAuthHeader.value
   }
   if (form.platform === 'gemini') {
     credentials.tier_id = geminiTierAIStudio.value

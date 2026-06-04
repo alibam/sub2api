@@ -5423,7 +5423,11 @@ func (s *GatewayService) buildUpstreamRequestAnthropicAPIKeyPassthrough(
 	req.Header.Del("x-api-key")
 	req.Header.Del("x-goog-api-key")
 	req.Header.Del("cookie")
-	setHeaderRaw(req.Header, "x-api-key", token)
+	if account.UsesAnthropicAPIKeyBearerAuth() {
+		setHeaderRaw(req.Header, "authorization", "Bearer "+token)
+	} else {
+		setHeaderRaw(req.Header, "x-api-key", token)
+	}
 
 	if getHeaderRaw(req.Header, "content-type") == "" {
 		setHeaderRaw(req.Header, "content-type", "application/json")
@@ -6299,6 +6303,8 @@ func (s *GatewayService) buildUpstreamRequest(ctx context.Context, c *gin.Contex
 
 	// 设置认证头（保持原始大小写）
 	if tokenType == "oauth" {
+		setHeaderRaw(req.Header, "authorization", "Bearer "+token)
+	} else if account.UsesAnthropicAPIKeyBearerAuth() {
 		setHeaderRaw(req.Header, "authorization", "Bearer "+token)
 	} else {
 		setHeaderRaw(req.Header, "x-api-key", token)
@@ -9766,6 +9772,8 @@ func (s *GatewayService) buildCountTokensRequest(ctx context.Context, c *gin.Con
 
 	// 设置认证头（保持原始大小写）
 	if tokenType == "oauth" {
+		setHeaderRaw(req.Header, "authorization", "Bearer "+token)
+	} else if account.UsesAnthropicAPIKeyBearerAuth() {
 		setHeaderRaw(req.Header, "authorization", "Bearer "+token)
 	} else {
 		setHeaderRaw(req.Header, "x-api-key", token)

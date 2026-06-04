@@ -60,3 +60,38 @@ func TestAccount_IsAnthropicAPIKeyPassthroughEnabled(t *testing.T) {
 		require.False(t, openai.IsAnthropicAPIKeyPassthroughEnabled())
 	})
 }
+
+func TestAccount_GetAnthropicAPIKeyAuthHeader(t *testing.T) {
+	t.Run("默认使用 x-api-key", func(t *testing.T) {
+		account := &Account{
+			Platform:    PlatformAnthropic,
+			Type:        AccountTypeAPIKey,
+			Credentials: map[string]any{},
+		}
+		require.Equal(t, AnthropicAPIKeyAuthHeaderXAPIKey, account.GetAnthropicAPIKeyAuthHeader())
+		require.False(t, account.UsesAnthropicAPIKeyBearerAuth())
+	})
+
+	t.Run("显式 bearer 使用 Authorization Bearer", func(t *testing.T) {
+		account := &Account{
+			Platform: PlatformAnthropic,
+			Type:     AccountTypeAPIKey,
+			Credentials: map[string]any{
+				"auth_header": "bearer",
+			},
+		}
+		require.Equal(t, AnthropicAPIKeyAuthHeaderBearer, account.GetAnthropicAPIKeyAuthHeader())
+		require.True(t, account.UsesAnthropicAPIKeyBearerAuth())
+	})
+
+	t.Run("非 Anthropic API Key 忽略配置", func(t *testing.T) {
+		account := &Account{
+			Platform: PlatformOpenAI,
+			Type:     AccountTypeAPIKey,
+			Credentials: map[string]any{
+				"auth_header": "bearer",
+			},
+		}
+		require.Equal(t, AnthropicAPIKeyAuthHeaderXAPIKey, account.GetAnthropicAPIKeyAuthHeader())
+	})
+}

@@ -190,6 +190,59 @@ func TestGatewayService_AnthropicAPIKeyPassthrough_ForwardStreamPreservesBodyAnd
 	require.Empty(t, rec.Header().Get("Set-Cookie"), "响应头应经过安全过滤")
 }
 
+func TestGatewayService_AnthropicAPIKeyPassthrough_BearerAuthHeader(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
+	c.Request.Header.Set("Authorization", "Bearer inbound-token")
+	c.Request.Header.Set("X-Api-Key", "inbound-api-key")
+	c.Request.Header.Set("Cookie", "secret=1")
+	c.Request.Header.Set("Anthropic-Beta", "interleaved-thinking-2025-05-14")
+
+	body := []byte(`{"model":"claude-opus-4-7","stream":true,"messages":[{"role":"user","content":"hi"}]}`)
+	parsed := &ParsedRequest{
+		Body:   NewRequestBodyRef(body),
+		Model:  "claude-opus-4-7",
+		Stream: true,
+	}
+
+	upstream := &anthropicHTTPUpstreamRecorder{
+		resp: &http.Response{
+			StatusCode: http.StatusOK,
+			Header:     http.Header{"Content-Type": []string{"text/event-stream"}},
+			Body: io.NopCloser(strings.NewReader(strings.Join([]string{
+				`data: {"type":"message_start","message":{"usage":{"input_tokens":1}}}`,
+				"",
+				`data: {"type":"message_delta","usage":{"output_tokens":1}}`,
+				"",
+				"data: [DONE]",
+				"",
+			}, "\n"))),
+		},
+	}
+
+	cfg := &config.Config{Gateway: config.GatewayConfig{MaxLineSize: defaultMaxLineSize}}
+	svc := &GatewayService{
+		cfg:                  cfg,
+		responseHeaderFilter: compileResponseHeaderFilter(cfg),
+		httpUpstream:         upstream,
+		rateLimitService:     &RateLimitService{},
+		deferredService:      &DeferredService{},
+	}
+
+	account := newAnthropicAPIKeyAccountForTest()
+	account.Credentials["auth_header"] = "bearer"
+
+	result, err := svc.Forward(context.Background(), c, account, parsed)
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.Equal(t, "Bearer upstream-anthropic-key", getHeaderRaw(upstream.lastReq.Header, "authorization"))
+	require.Empty(t, getHeaderRaw(upstream.lastReq.Header, "x-api-key"))
+	require.Empty(t, getHeaderRaw(upstream.lastReq.Header, "cookie"))
+}
+
 func TestGatewayService_AnthropicAPIKeyPassthrough_ForwardCountTokensPreservesBody(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 

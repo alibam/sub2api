@@ -289,7 +289,11 @@ func (s *AccountTestService) testClaudeAccountConnection(c *gin.Context, account
 		req.Header.Set("Authorization", "Bearer "+authToken)
 	} else {
 		req.Header.Set("anthropic-beta", claude.APIKeyBetaHeader)
-		req.Header.Set("x-api-key", authToken)
+		if account.UsesAnthropicAPIKeyBearerAuth() {
+			req.Header.Set("Authorization", "Bearer "+authToken)
+		} else {
+			req.Header.Set("x-api-key", authToken)
+		}
 	}
 
 	// Get proxy URL

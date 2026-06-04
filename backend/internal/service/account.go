@@ -1479,6 +1479,27 @@ func (a *Account) IsAnthropicAPIKeyPassthroughEnabled() bool {
 	return ok && enabled
 }
 
+const (
+	AnthropicAPIKeyAuthHeaderXAPIKey = "x-api-key"
+	AnthropicAPIKeyAuthHeaderBearer  = "bearer"
+)
+
+func (a *Account) GetAnthropicAPIKeyAuthHeader() string {
+	if a == nil || a.Platform != PlatformAnthropic || a.Type != AccountTypeAPIKey {
+		return AnthropicAPIKeyAuthHeaderXAPIKey
+	}
+	switch strings.ToLower(strings.TrimSpace(a.GetCredential("auth_header"))) {
+	case AnthropicAPIKeyAuthHeaderBearer, "authorization", "bearer_authorization":
+		return AnthropicAPIKeyAuthHeaderBearer
+	default:
+		return AnthropicAPIKeyAuthHeaderXAPIKey
+	}
+}
+
+func (a *Account) UsesAnthropicAPIKeyBearerAuth() bool {
+	return a.GetAnthropicAPIKeyAuthHeader() == AnthropicAPIKeyAuthHeaderBearer
+}
+
 // WebSearch 模拟三态常量
 const (
 	WebSearchModeDefault  = "default"  // 跟随渠道配置

@@ -69,6 +69,12 @@
           <p class="input-hint">{{ t('admin.accounts.leaveEmptyToKeep') }}</p>
         </div>
 
+        <div v-if="account.platform === 'anthropic'">
+          <label class="input-label">上游鉴权头</label>
+          <Select v-model="anthropicAPIKeyAuthHeader" :options="anthropicAPIKeyAuthHeaderOptions" />
+          <p class="input-hint">京东云等兼容接口可选择 Authorization: Bearer。</p>
+        </div>
+
         <!-- Model Restriction Section (不适用于 Antigravity) -->
         <div v-if="account.platform !== 'antigravity'" class="border-t border-gray-200 pt-4 dark:border-dark-600">
           <label class="input-label">{{ t('admin.accounts.modelRestriction') }}</label>
@@ -2587,6 +2593,11 @@ const codexCLIOnlyEnabled = ref(false)
 const codexCLIOnlyAllowClaudeCodeEnabled = ref(false)
 type CodexImageGenerationBridgeMode = 'inherit' | 'enabled' | 'disabled'
 const codexImageGenerationBridgeMode = ref<CodexImageGenerationBridgeMode>('inherit')
+const anthropicAPIKeyAuthHeader = ref<'x-api-key' | 'bearer'>('x-api-key')
+const anthropicAPIKeyAuthHeaderOptions = [
+  { label: 'x-api-key', value: 'x-api-key' },
+  { label: 'Authorization: Bearer', value: 'bearer' }
+]
 const anthropicPassthroughEnabled = ref(false)
 const webSearchEmulationMode = ref('default')
 const webSearchGlobalEnabled = ref(false)
@@ -3010,6 +3021,8 @@ const syncFormFromAccount = (newAccount: Account | null) => {
     }
   }
   if (newAccount.platform === 'anthropic' && newAccount.type === 'apikey') {
+    const credentials = newAccount.credentials as Record<string, unknown> | undefined
+    anthropicAPIKeyAuthHeader.value = credentials?.auth_header === 'bearer' ? 'bearer' : 'x-api-key'
     anthropicPassthroughEnabled.value = extra?.anthropic_passthrough === true
     // 三态：string "default"/"enabled"/"disabled"，向后兼容旧 bool
     const wsVal = extra?.web_search_emulation
@@ -3725,6 +3738,13 @@ const handleSubmit = async () => {
           newCredentials.compact_model_mapping = compactModelMapping
         } else {
           delete newCredentials.compact_model_mapping
+        }
+      }
+      if (props.account.platform === 'anthropic') {
+        if (anthropicAPIKeyAuthHeader.value === 'bearer') {
+          newCredentials.auth_header = 'bearer'
+        } else {
+          delete newCredentials.auth_header
         }
       }
 
