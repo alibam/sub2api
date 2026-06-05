@@ -5386,7 +5386,7 @@ func (s *GatewayService) buildUpstreamRequestAnthropicAPIKeyPassthrough(
 		if err != nil {
 			return nil, nil, err
 		}
-		targetURL = validatedURL + "/v1/messages?beta=true"
+		targetURL = anthropicMessagesURL(validatedURL, !account.UsesAnthropicAPIKeyBearerAuth())
 	}
 
 	// 能力维度 body sanitize：透传路径上 anthropic-beta header 原样透传客户端值，
@@ -6214,7 +6214,7 @@ func (s *GatewayService) buildUpstreamRequest(ctx context.Context, c *gin.Contex
 			if err != nil {
 				return nil, nil, err
 			}
-			targetURL = validatedURL + "/v1/messages?beta=true"
+			targetURL = anthropicMessagesURL(validatedURL, !account.UsesAnthropicAPIKeyBearerAuth())
 		}
 	} else if account.IsCustomBaseURLEnabled() {
 		customURL := account.GetCustomBaseURL()
@@ -9644,7 +9644,7 @@ func (s *GatewayService) buildCountTokensRequestAnthropicAPIKeyPassthrough(
 		if err != nil {
 			return nil, err
 		}
-		targetURL = validatedURL + "/v1/messages/count_tokens?beta=true"
+		targetURL = anthropicCountTokensURL(validatedURL, !account.UsesAnthropicAPIKeyBearerAuth())
 	}
 	body = sanitizeCountTokensRequestBody(body)
 
@@ -9679,13 +9679,17 @@ func (s *GatewayService) buildCountTokensRequestAnthropicAPIKeyPassthrough(
 	req.Header.Del("x-api-key")
 	req.Header.Del("x-goog-api-key")
 	req.Header.Del("cookie")
-	req.Header.Set("x-api-key", token)
-
-	if req.Header.Get("content-type") == "" {
-		req.Header.Set("content-type", "application/json")
+	if account.UsesAnthropicAPIKeyBearerAuth() {
+		setHeaderRaw(req.Header, "authorization", "Bearer "+token)
+	} else {
+		setHeaderRaw(req.Header, "x-api-key", token)
 	}
-	if req.Header.Get("anthropic-version") == "" {
-		req.Header.Set("anthropic-version", "2023-06-01")
+
+	if getHeaderRaw(req.Header, "content-type") == "" {
+		setHeaderRaw(req.Header, "content-type", "application/json")
+	}
+	if getHeaderRaw(req.Header, "anthropic-version") == "" {
+		setHeaderRaw(req.Header, "anthropic-version", "2023-06-01")
 	}
 
 	return req, nil
@@ -9702,7 +9706,7 @@ func (s *GatewayService) buildCountTokensRequest(ctx context.Context, c *gin.Con
 			if err != nil {
 				return nil, nil, err
 			}
-			targetURL = validatedURL + "/v1/messages/count_tokens?beta=true"
+			targetURL = anthropicCountTokensURL(validatedURL, !account.UsesAnthropicAPIKeyBearerAuth())
 		}
 	} else if account.IsCustomBaseURLEnabled() {
 		customURL := account.GetCustomBaseURL()

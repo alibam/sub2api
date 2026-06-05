@@ -39,6 +39,24 @@ func TestGetBaseURL(t *testing.T) {
 			expected: "https://custom.example.com",
 		},
 		{
+			name: "anthropic apikey strips messages endpoint",
+			account: Account{
+				Type:        AccountTypeAPIKey,
+				Platform:    PlatformAnthropic,
+				Credentials: map[string]any{"base_url": "https://modelservice.jdcloud.com/anthropic/v1/messages"},
+			},
+			expected: "https://modelservice.jdcloud.com/anthropic",
+		},
+		{
+			name: "anthropic apikey strips count_tokens endpoint and query",
+			account: Account{
+				Type:        AccountTypeAPIKey,
+				Platform:    PlatformAnthropic,
+				Credentials: map[string]any{"base_url": "https://modelservice.jdcloud.com/anthropic/v1/messages/count_tokens?beta=true"},
+			},
+			expected: "https://modelservice.jdcloud.com/anthropic",
+		},
+		{
 			name: "antigravity apikey auto-appends /antigravity",
 			account: Account{
 				Type:        AccountTypeAPIKey,

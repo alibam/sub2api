@@ -6,6 +6,7 @@ import (
 	"errors"
 	"hash/fnv"
 	"log/slog"
+	"net/url"
 	"reflect"
 	"sort"
 	"strconv"
@@ -739,7 +740,33 @@ func (a *Account) GetBaseURL() string {
 	if a.Platform == PlatformAntigravity {
 		return strings.TrimRight(baseURL, "/") + "/antigravity"
 	}
-	return baseURL
+	if a.Platform == PlatformAnthropic {
+		return normalizeAnthropicAPIKeyBaseURL(baseURL)
+	}
+	return strings.TrimRight(strings.TrimSpace(baseURL), "/")
+}
+
+func normalizeAnthropicAPIKeyBaseURL(raw string) string {
+	trimmed := strings.TrimRight(strings.TrimSpace(raw), "/")
+	if trimmed == "" {
+		return ""
+	}
+	parsed, err := url.Parse(trimmed)
+	if err != nil || parsed.Scheme == "" || parsed.Host == "" {
+		return trimmed
+	}
+	parsed.RawQuery = ""
+	parsed.ForceQuery = false
+	parsed.Fragment = ""
+	path := strings.TrimRight(parsed.EscapedPath(), "/")
+	for _, suffix := range []string{"/v1/messages/count_tokens", "/v1/messages"} {
+		if strings.HasSuffix(path, suffix) {
+			parsed.Path = strings.TrimRight(path[:len(path)-len(suffix)], "/")
+			return strings.TrimRight(parsed.String(), "/")
+		}
+	}
+	parsed.Path = strings.TrimRight(path, "/")
+	return strings.TrimRight(parsed.String(), "/")
 }
 
 // GetGeminiBaseURL 返回 Gemini 兼容端点的 base URL。

@@ -166,6 +166,36 @@ func createTestPayload(modelID string) (map[string]any, error) {
 	}, nil
 }
 
+func createMinimalAnthropicAPIKeyTestPayload(modelID string) map[string]any {
+	return map[string]any{
+		"model": modelID,
+		"messages": []map[string]any{
+			{
+				"role":    "user",
+				"content": "hi",
+			},
+		},
+		"max_tokens": 1024,
+		"stream":     false,
+	}
+}
+
+func anthropicMessagesURL(baseURL string, includeBetaQuery bool) string {
+	target := strings.TrimRight(strings.TrimSpace(baseURL), "/") + "/v1/messages"
+	if includeBetaQuery {
+		target += "?beta=true"
+	}
+	return target
+}
+
+func anthropicCountTokensURL(baseURL string, includeBetaQuery bool) string {
+	target := strings.TrimRight(strings.TrimSpace(baseURL), "/") + "/v1/messages/count_tokens"
+	if includeBetaQuery {
+		target += "?beta=true"
+	}
+	return target
+}
+
 // TestAccountConnection tests an account's connection by sending a test request
 // All account types use full Claude Code client characteristics, only auth header differs
 // modelID is optional - if empty, defaults to claude.DefaultTestModel
@@ -247,7 +277,7 @@ func (s *AccountTestService) testClaudeAccountConnection(c *gin.Context, account
 		if err != nil {
 			return s.sendErrorAndEnd(c, fmt.Sprintf("Invalid base URL: %s", err.Error()))
 		}
-		apiURL = strings.TrimSuffix(normalizedBaseURL, "/") + "/v1/messages?beta=true"
+		apiURL = anthropicMessagesURL(normalizedBaseURL, !account.UsesAnthropicAPIKeyBearerAuth())
 	} else {
 		return s.sendErrorAndEnd(c, fmt.Sprintf("Unsupported account type: %s", account.Type))
 	}
@@ -259,10 +289,16 @@ func (s *AccountTestService) testClaudeAccountConnection(c *gin.Context, account
 	c.Writer.Header().Set("X-Accel-Buffering", "no")
 	c.Writer.Flush()
 
-	// Create Claude Code style payload (same for all account types)
-	payload, err := createTestPayload(testModelID)
-	if err != nil {
-		return s.sendErrorAndEnd(c, "Failed to create test payload")
+	var payload map[string]any
+	if account.Type == "apikey" && account.UsesAnthropicAPIKeyBearerAuth() {
+		payload = createMinimalAnthropicAPIKeyTestPayload(testModelID)
+	} else {
+		// Create Claude Code style payload (same for all account types)
+		var err error
+		payload, err = createTestPayload(testModelID)
+		if err != nil {
+			return s.sendErrorAndEnd(c, "Failed to create test payload")
+		}
 	}
 	payloadBytes, _ := json.Marshal(payload)
 
@@ -318,6 +354,25 @@ func (s *AccountTestService) testClaudeAccountConnection(c *gin.Context, account
 		}
 
 		return s.sendErrorAndEnd(c, errMsg)
+	}
+
+	if account.Type == "apikey" && account.UsesAnthropicAPIKeyBearerAuth() {
+		body, _ := io.ReadAll(resp.Body)
+		var result struct {
+			Content []struct {
+				Text string `json:"text"`
+			} `json:"content"`
+		}
+		if err := json.Unmarshal(body, &result); err != nil {
+			return s.sendErrorAndEnd(c, fmt.Sprintf("Failed to parse response: %s", err.Error()))
+		}
+		text := "(empty response)"
+		if len(result.Content) > 0 && result.Content[0].Text != "" {
+			text = result.Content[0].Text
+		}
+		s.sendEvent(c, TestEvent{Type: "content", Text: text})
+		s.sendEvent(c, TestEvent{Type: "test_complete", Success: true})
+		return nil
 	}
 
 	// Process SSE stream
